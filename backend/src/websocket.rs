@@ -1,10 +1,11 @@
-use crate::{Clients, Client, Result, game::handle_message};
+use crate::{Clients, Client, Result, game::handle_message, handler::publish_handler};
 use chrono::{prelude::DateTime, Utc};
 use futures::{FutureExt, StreamExt};
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::ws::{WebSocket, Message};
+use crate::{handler};
 
 pub async fn client_connection(websocket: WebSocket, id: String, clients: Clients, mut client: Client) {
     let (client_ws_sender, mut client_ws_rcv) = websocket.split();
@@ -38,7 +39,7 @@ pub async fn client_connection(websocket: WebSocket, id: String, clients: Client
 }
 
 async fn client_msg(id: &str, msg: Message, clients: &Clients) {
-    println!("{}:: Received messsage from {}: {:?}", current_time(), id, msg);
+    println!("{}:: Received message from {}: {:?}", current_time(), id, msg);
     let message = match msg.to_str() {
         Ok(v) => v,
         Err(_) => return,
@@ -50,6 +51,12 @@ async fn client_msg(id: &str, msg: Message, clients: &Clients) {
 
     handle_message(id, message).await;
 
+}
+
+async fn send_msg_to_client(id: &str, msg: Message, client: &Client) {
+    if let Some(sender) = &client.sender {
+        
+    }
 }
 
 pub fn current_time() -> String {
