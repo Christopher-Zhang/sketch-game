@@ -1,10 +1,11 @@
-use crate::{Clients, Client, Result, websocket};
+use crate::{Clients, Client, Result, websocket, log, logerr};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp::{Reply, reply::json, ws::Message, http::StatusCode};
 
 #[derive(Deserialize, Debug)]
 pub struct RegisterRequest {
+    username: String,
     user_id: usize,
     game_id: usize,
 }
@@ -38,19 +39,21 @@ pub async fn publish_handler(event: Event, clients: Clients) -> Result<impl Repl
 pub async fn register_handler(body: RegisterRequest, clients: Clients) -> Result<impl Reply> {
     let user_id = body.user_id;
     let game_id: usize = body.game_id;
+    let username: String = body.username;
     let uuid = Uuid::new_v4().as_simple().to_string();
-    println!("Registering {}", user_id);
+    log(format!("Registering {}", user_id));
 
-    register_client(uuid.clone(), user_id, game_id, clients).await;
+    register_client(uuid.clone(), username, user_id, game_id, clients).await;
     Ok(json(&RegisterResponse {
         url: format!("ws://127.0.0.1:8000/ws/{}", uuid),
     }))
 }
 
-async fn register_client(id: String, user_id: usize, game_id: usize, clients: Clients) {
+async fn register_client(id: String, username: String, user_id: usize, game_id: usize, clients: Clients) {
     clients.write().await.insert(
         id,
         Client{
+            username,
             user_id,
             game_id,
             sender: None,
@@ -61,14 +64,14 @@ async fn register_client(id: String, user_id: usize, game_id: usize, clients: Cl
 pub async fn unregister_handler(id: String, clients: Clients) -> Result<impl Reply> {
     match clients.read().await.get(&id) {
         Some(x) => {
-            println!("User: {}", x.user_id);
+            log(format!("Unregistering User: {}", x.user_id));
         },
         None => {
-            println!("Failed");
+            logerr(format!("Failed to unregister {}", id));
         }
     }
     clients.write().await.remove(&id);
-    println!("Unregistering {}", id);
+    log(format!("Unregistered {}", id));
     Ok(StatusCode::OK)
 }
 
@@ -78,6 +81,10 @@ pub async fn websocket_handler(websocket: warp::ws::Ws, id: String, clients: Cli
         Some(c) => Ok(websocket.on_upgrade(move |socket| websocket::client_connection(socket, id, clients, c))),
         None => Err(warp::reject::not_found()),
     }
+}
+
+pub async fn health_handler() -> Result<impl Reply> {
+    Ok(StatusCode::OK)
 }
 
 
