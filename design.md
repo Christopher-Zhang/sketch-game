@@ -1,3 +1,9 @@
+### TODO
+- make a general message struct
+    - add enum for the message type
+- look at the canvas implementation
+
+
 ## FLOW
 client = {id, username?, user_id, game_id}
 

@@ -1,12 +1,24 @@
 use crate::{Clients, Client, Result, game::handle_message, handler::publish_handler, logerr, log};
 use chrono::{prelude::DateTime, Utc};
 use futures::{FutureExt, StreamExt};
+use serde::{Serialize, Deserialize};
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::ws::{WebSocket, Message};
 use warp::{http::StatusCode, Reply};
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChatMessage {
+    pub user_id: usize,
+    pub username: String,
+    pub game_id: usize,
+    pub message: String
+}
+
+// pub struct ChatResponse {
+//     pub 
+// }
 pub async fn client_connection(websocket: WebSocket, id: String, clients: Clients, mut client: Client) {
     let (client_ws_sender, mut client_ws_rcv) = websocket.split();
     let (client_sender, client_rcv) = mpsc::unbounded_channel();
@@ -38,21 +50,29 @@ pub async fn client_connection(websocket: WebSocket, id: String, clients: Client
     log(format!("disconnected {}", id));
 }
 
-async fn client_msg(id: &str, msg: Message, clients: &Clients) {
+async fn client_msg(id: &str, msg: Message, clients: &Clients) -> Result<impl Reply> {
     log(format!("Received message from {}: {:?}", id, msg));
-    let message = match msg.to_str() {
+    let raw = match msg.to_str() {
         Ok(v) => v,
-        Err(_) => return,
+        Err(_) => "",
     };
+    let obj: ChatMessage = serde_json::from_str(raw).unwrap();
+    // log(format!("Parsed: {:?}", obj));
+    // log(format!("message: {}", raw));
 
     // TODO make a chat message struct and use that as the message instead of the ws message
-    if message == "ping" || message == "ping\n" {
-        log("received ping".to_string());
-        send_msg_by_id(Message::text("pong!"), id.to_string(), clients).await;
-        return;
-    }
+    // if raw == "ping" || raw == "ping\n" {
+    //     log("received ping".to_string());
+    //     match send_msg_by_id(Message::text("pong!"), id.to_string(), clients).await {
+    //         Ok(r) => (),
+    //         Err(e) => logerr(format!("Error in sending message {:?}", e)),
+    //     }
+    //     return;
+    // }
 
-    handle_message(id, message).await;
+    handle_message(id, obj, clients.clone()).await;
+
+    Ok(StatusCode::OK)
 
 }
 

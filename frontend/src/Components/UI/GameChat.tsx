@@ -10,11 +10,10 @@ function GameChat({ }: Props) {
     const [socketUrl, setSocketUrl] = useState("");
     const [chatInput, setChatInput] = useState("");
     const [chat, setChat] = useState([""]);
-    const {sendJsonMessage, lastJsonMessage, readyState}= useWebSocket(
+    const {sendJsonMessage, lastMessage, readyState}= useWebSocket(
         socketUrl, {
             onOpen: () => {
                 console.log(`Connected to ${socketUrl}!`);
-                // TODO register uuid and stuff
             },
             shouldReconnect: closeEvent => true,
             share: true,
@@ -24,6 +23,9 @@ function GameChat({ }: Props) {
     const handleChatSubmit: Function = (submitEvent: KeyboardEvent) => {
         if(submitEvent.key === 'Enter') {
             let message = {
+                user_id: 1,
+                username: 'keypup',
+                game_id: 1,
                 message: chatInput,
             }
             sendJsonMessage(message);
@@ -48,14 +50,18 @@ function GameChat({ }: Props) {
             .then((data) => {setSocketUrl(data["url"])});
     }, []);
 
-    // useEffect(() => {
-    //     console.log("Message: %o", lastJsonMessage);
-    // },[lastJsonMessage]);
+    useEffect(() => {
+        // console.log("Message: %o", JSON.stringify(lastJsonMessage));
+        console.log("Raw Message: ", lastMessage);
+        let text = lastMessage?.data;
+        setChat((prev) => [...prev, text]);
+    },[lastMessage]);
     return (
         <div className='chatContainer columns-1'>
             <ChatDisplay />
             <div className='chatInputBox border-2 w-full'>
                 <div>Url: {socketUrl}</div>
+                {chat.map((e) => <div>{e}</div>)}
                 <input type='text' className='chatInputArea' onChange={(event)=>handleChatInput(event)} onKeyDown={(event) => handleChatSubmit(event)}></input>
             </div>
         </div>

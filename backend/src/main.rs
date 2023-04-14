@@ -52,6 +52,7 @@ async fn main() {
     let cors= warp::cors().allow_any_origin()
         .allow_headers(vec!["Access-Control-Allow-Headers", "Access-Control-Request-Method", "Access-Control-Request-Headers", "Origin", "Accept", "X-Requested-With", "Content-Type"])
         .allow_methods(&[Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE, Method::OPTIONS, Method::HEAD]);
+    
     let routes = register_routes
         .or(websocket_route)
         .or(publish_route)
