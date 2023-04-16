@@ -1,11 +1,10 @@
 import React from 'react';
-import './App.css';
-import GameContainer from './Components/GameContainer';
+import GameManager from './Components/GameManager';
 
 function App() {
   return (
-    <div className="AppWrapper">
-        <GameContainer />
+    <div className="app-wrapper p-2">
+        <GameManager />
     </div>
   );
 }

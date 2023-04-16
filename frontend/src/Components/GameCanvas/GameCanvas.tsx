@@ -35,11 +35,14 @@ function GameCanvas({ }: Props) {
         if(!isPainting) {
             return;
         }
+        let lineX = e.clientX - canvasOffsetX.current;
+        let lineY = e.clientY;
 
+        console.log(`lineX: ${lineX}, lineY: ${lineY}`);
         (ctx.current as CanvasRenderingContext2D).lineWidth = lineWidth;
         // (ctx.current as CanvasRenderingContext2D).
         (ctx.current as CanvasRenderingContext2D).lineCap = "round";
-        (ctx.current as CanvasRenderingContext2D).lineTo(e.clientX - canvasOffsetX.current, e.clientY);
+        (ctx.current as CanvasRenderingContext2D).lineTo(lineX, lineY);
         (ctx.current as CanvasRenderingContext2D).stroke();
 
     };
@@ -58,9 +61,7 @@ function GameCanvas({ }: Props) {
                     onMouseDown={e => handleMouseDown(e)} 
                     onMouseMove={e => handleMouseMove(e)}
                     onMouseUp=  {e => handleMouseUp(e)}
-                    className='GameCanvas border-solid border-2 border-black' 
-                    width='100vw' 
-                    height='100vw'
+                    className='GameCanvas w-full h-full' 
                 ></canvas>
             </div>
         </div>

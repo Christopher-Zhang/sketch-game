@@ -1,10 +1,19 @@
 import React from 'react';
 
-type Props = {};
+type Props = {
+    chatHistory: Array<string>
+};
 
-function ChatDisplay({ }: Props) {
+function ChatDisplay(props: Props) {
+    const chatHistory = [...props.chatHistory];
+    chatHistory.reverse();
+    console.log(chatHistory);
     return (
-        <div className='h-8 ps-1 mb-2 w-full'>ChatDisplay</div>
+        <div className='row-span-5 flex flex-col-reverse'>
+            {chatHistory.map(
+                e => <div>{e}</div>
+            )}
+        </div>
     );
 }
 
