@@ -70,8 +70,8 @@ function registerWebsocket(body: {}, socketHandler: Function) {
     };
     console.log("registering socket ");
     fetch("http://localhost:8000/register", opts)
-        .then((res) => res.json())
-        .then((data) => {socketHandler(data["url"])});
+    .then((res) => res.json())
+    .then((data) => {socketHandler(data["url"])});
 }
 
 export default GameManager;

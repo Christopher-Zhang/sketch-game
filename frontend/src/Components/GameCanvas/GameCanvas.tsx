@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { Colors } from '../../constants/enums';
+import { Colors, LineWidth } from '../../constants/enums';
 
 type Props = {
     // registerCanvasClearer: Function,
@@ -10,6 +10,7 @@ type Props = {
     // backgroundColor: Colors,
     // doClearCanvas: boolean,
 };
+
 
 function GameCanvas(props: Props) {
     const ctx: React.MutableRefObject<CanvasRenderingContext2D|null> = useRef(null);
@@ -22,6 +23,8 @@ function GameCanvas(props: Props) {
     const [startX, setStartX] = useState(0);
     const [startY, setStartY] = useState(0);
     const [lineColor, setLineColor] = useState(Colors.Black);
+    const [lineWidth, setLineWidth] = useState(LineWidth.THIN);
+    const [currentTool, setCurrentTool] = useState();
     const [backgroundColor, setBackgroundColor] = useState(Colors.White);
 
     const setCanvasDimensions = () => {
@@ -66,10 +69,32 @@ function GameCanvas(props: Props) {
         // context.clearRect(0, 0, canvas.width, canvas.height);
     };
 
+    const handleColorChange = (e:React.MouseEvent<HTMLButtonElement>) => {
+        let id = (e.target as HTMLButtonElement).id;
+        let match = id.match(/-(.+)/);
+        if (match && match[1]) {
+            let str = match[1];
+            str = str.charAt(0).toUpperCase() + str.slice(1);
+            let color = Colors[str as keyof typeof Colors]
+            // console.log("Setting color to : %o", color);
+            setLineColor(color);
+        }
+    };
 
-    let lineWidth = 2;
+    const handleLineWidthChange = (e:React.MouseEvent<HTMLButtonElement>) => {
+        let id = (e.target as HTMLButtonElement).id;
+        let match = id.match(/-(.+)/);
+        if (match && match[1]) {
+            let str = match[1];
+            str = str.charAt(0).toUpperCase() + str.slice(1);
+            let color = Colors[str as keyof typeof Colors]
+            // console.log("Setting color to : %o", color);
+            setLineColor(color);
+        }
+    };
 
     const handleMouseDown = (e: React.MouseEvent<HTMLElement>) => {
+        (ctx.current as CanvasRenderingContext2D).strokeStyle = lineColor;
         let lineX = e.pageX - canvasOffsetX.current;
         let lineY = e.pageY - canvasOffsetY.current;
         if (lineX < 0 || lineX > canvasWidth.current || lineY < 0 || lineY > canvasHeight.current) return;
@@ -80,6 +105,7 @@ function GameCanvas(props: Props) {
     };
     const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
         if(!isPainting) return;
+        (ctx.current as CanvasRenderingContext2D).strokeStyle = lineColor;
         console.log("painting");
         let lineX = e.pageX - canvasOffsetX.current;
         let lineY = e.pageY - canvasOffsetY.current;
@@ -93,7 +119,7 @@ function GameCanvas(props: Props) {
 
     };
     const handleMouseUp = (e: React.MouseEvent<HTMLElement>) => {
- 
+        (ctx.current as CanvasRenderingContext2D).strokeStyle = lineColor;
         setIsPainting(false);
         if (!isPainting) return;
         let lineX = e.pageX - canvasOffsetX.current;
@@ -118,7 +144,7 @@ function GameCanvas(props: Props) {
     return (
         <div className='game-canvas-container flex flex-col h-[120%]'>
             <div className='border-2 border-black'>
-                <canvas 
+                <canvas
                     id='game-canvas'
                     onMouseDown={e => handleMouseDown(e)} 
                     onMouseMove={e => handleMouseMove(e)}
@@ -128,25 +154,51 @@ function GameCanvas(props: Props) {
                 ></canvas>
 
             </div>
-            <div className='game-toolbar mx-auto mt-2'>
-                {buildColorPalette(colors)}
-                <button className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded' onClick={clearCanvas}>Clear</button>
+            <div className='game-toolbar mx-auto mt-2 flex flex-row justify-start'>
+                <div className='line-width mx-5 flex flex-row'>
+                    <input onChange={(e) => (setLineWidth(e.target.value as unknown as LineWidth))} type="range" className='line-width-slider' min={1} max={20} step={4}></input>
+                </div>
+                <div className='color-palette flex flex-row'>
+                    {colors.map((color: string) => {
+                        let isActive = color === lineColor;
+                        color = color.toLowerCase();
+                        let colorConflicts = ['red', 'magenta'];
+                        let activeColor = (colorConflicts.includes(color)) ? 'black' : 'red';
+                        let style = {
+                            backgroundColor: color,
+                            borderStyle: isActive ? 'dotted' : 'solid',
+                            borderWidth: isActive ? '4px' : '2px',
+                            borderColor: isActive ? activeColor : 'black'
+                        };
+                        return <button onClick={(e) => handleColorChange(e)} id={`changeColor-${color}`} className='w-8 h-8 m-0.5' style={style}></button>;
+                    })}
+                </div>
+                <button className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mx-3' onClick={clearCanvas}>Clear</button>
             </div>
         </div>
     );
 }
 
-function buildColorPalette(colors: Array<string>) {
-    // TODO implement
-    return (
-        <div className='color-palette'>
-            {colors.map((color: string) => {
-                color = color.toLowerCase();
-                console.log("Color: ", color);
-                let cname = `w-8 h-8 bg-${color}-400`;
-                return <div className={cname}></div>;
-            })}
-        </div>
-    )
-}
+
+    // let palette = [];
+    // for(let i = 0; i < colors.length - 1; i+=2) {
+    //     let style1 = {
+    //         backgroundColor: colors[i],
+    //     };
+    //     let style2 = {
+    //         backgroundColor: colors[i+1]
+    //     };
+    //     let col = (
+    //         <div className='grid-rows-2'>
+    //             <div className='row-span-1 w-8 h-8 m-1 border-2 border-black' style={style1}></div>
+    //             <div className='row-span-1 w-8 h-8 m-1 border-2 border-black' style={style2}></div>
+    //         </div>
+    //     );
+    //     palette.push(col);
+    // }
+    // return (
+    //     <div className='color-palette'>
+    //         {palette}
+    //     </div>
+    // )
 export default GameCanvas;

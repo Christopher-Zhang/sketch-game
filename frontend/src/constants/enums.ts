@@ -13,4 +13,10 @@ export enum Colors {
     Cyan = 'Cyan',
     Lime = 'Lime',
     Magenta = 'Magenta'
-}
+};
+
+export enum LineWidth {
+    THIN = 2,
+    MEDIUM = 10,
+    WIDE = 18
+};
