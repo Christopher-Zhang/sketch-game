@@ -82,14 +82,15 @@ function GameCanvas(props: Props) {
     };
 
     const handleLineWidthChange = (e:React.MouseEvent<HTMLButtonElement>) => {
+        console.log("line width change e: %o", e);
         let id = (e.target as HTMLButtonElement).id;
         let match = id.match(/-(.+)/);
         if (match && match[1]) {
             let str = match[1];
             str = str.charAt(0).toUpperCase() + str.slice(1);
-            let color = Colors[str as keyof typeof Colors]
+            let width = LineWidth[str as keyof typeof LineWidth]
             // console.log("Setting color to : %o", color);
-            setLineColor(color);
+            setLineWidth(width);
         }
     };
 
@@ -155,8 +156,39 @@ function GameCanvas(props: Props) {
 
             </div>
             <div className='game-toolbar mx-auto mt-2 flex flex-row justify-start'>
-                <div className='line-width mx-5 flex flex-row'>
-                    <input onChange={(e) => (setLineWidth(e.target.value as unknown as LineWidth))} type="range" className='line-width-slider' min={1} max={20} step={4}></input>
+                
+                <div className='line-width mx-5 flex flex-row content-center m-0.5'>
+                    {
+                        Object.keys(LineWidth).map((width) => {
+                            if (!isNaN(Number(width))) return null;
+                            let thisWidth = LineWidth[width as keyof typeof LineWidth];
+                            let isActive = lineWidth === thisWidth;
+                            let domWidth = (thisWidth + 6);
+                            let innerStyle = {
+                                width: `${domWidth}px`,
+                                height: `${domWidth}px`,
+                                backgroundColor: 'black',
+                                margin: `${(32-domWidth) / 2}px`,
+                                // marginLeft: `${(32-domWidth) / 2}px`,
+                                // marginRight: `${(32-domWidth) / 2}px`,
+                                // marginRight: `${(32-domWidth) / 2}px`,
+                                // marginRight: `${(32-domWidth) / 2}px`,
+                            };
+                            let outlineStyle = {
+                                outlineStyle: 'solid',
+                                outlineWidth: '2px',
+                                outlineColor: 'red',
+                                outlineOffset: '2px',
+                                backgroundClip: 'content-box'
+                            };
+                            if (isActive) {
+                                innerStyle = {...innerStyle, ...outlineStyle};
+                            }
+                            return (
+                                <button className='rounded-full' style={innerStyle} id={`linewidth-${width}`} onClick={(e) => handleLineWidthChange(e)}></button>
+                            );
+                        })
+                    }
                 </div>
                 <div className='color-palette flex flex-row'>
                     {colors.map((color: string) => {
@@ -164,13 +196,25 @@ function GameCanvas(props: Props) {
                         color = color.toLowerCase();
                         let colorConflicts = ['red', 'magenta'];
                         let activeColor = (colorConflicts.includes(color)) ? 'black' : 'red';
-                        let style = {
+                        let inactiveStyle = {
                             backgroundColor: color,
-                            borderStyle: isActive ? 'dotted' : 'solid',
-                            borderWidth: isActive ? '4px' : '2px',
-                            borderColor: isActive ? activeColor : 'black'
+                            borderStyle: 'solid',
+                            borderWidth: '2px',
+                            borderColor: 'black'
                         };
-                        return <button onClick={(e) => handleColorChange(e)} id={`changeColor-${color}`} className='w-8 h-8 m-0.5' style={style}></button>;
+                        let activeStyle = {
+                            backgroundColor: color,
+                            borderStyle: 'dashed',
+                            borderWidth: '2px',
+                            borderColor: activeColor
+                            // backgroundColor: color,
+                            // outlineStyle: 'dotted',
+                            // outlineWidth: '3px',
+                            // // outlineOffset: '1px',
+                            // outlineColor: 'red'
+                        };
+
+                        return <button onClick={(e) => handleColorChange(e)} id={`changeColor-${color}`} className='w-8 h-8 m-0.5 rounded-md' style={isActive ? activeStyle : inactiveStyle}></button>;
                     })}
                 </div>
                 <button className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mx-3' onClick={clearCanvas}>Clear</button>

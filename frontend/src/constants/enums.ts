@@ -17,6 +17,8 @@ export enum Colors {
 
 export enum LineWidth {
     THIN = 2,
+    MEDIUM_THIN = 6,
     MEDIUM = 10,
+    MEDIUM_WIDE = 14,
     WIDE = 18
 };
