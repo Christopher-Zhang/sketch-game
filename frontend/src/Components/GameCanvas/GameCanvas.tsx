@@ -91,6 +91,7 @@ function GameCanvas(props: Props) {
             let width = LineWidth[str as keyof typeof LineWidth]
             // console.log("Setting color to : %o", color);
             setLineWidth(width);
+            (ctx.current as CanvasRenderingContext2D).lineWidth = width;
         }
     };
 

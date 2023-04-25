@@ -1,4 +1,4 @@
-use crate::{websocket::current_time};
+use crate::{utils::current_time};
 use tokio::sync::{mpsc, RwLock};
 use warp::hyper::Method;
 use warp::{ws::Message, Rejection, Filter};
@@ -9,6 +9,7 @@ use std::convert::Infallible;
 mod handler;
 mod websocket;
 mod game;
+mod utils;
 #[derive(Debug, Clone)]
 pub struct Client {
     pub username: String,

@@ -19,4 +19,17 @@ how to manage?
     - timer
     - state of the game (picking, drawing)
     - votekick?
-  - 
+  
+
+
+
+  Canvas message:
+
+  {
+    color
+    linewidth
+    startx
+    starty
+    endx
+    endy
+  }
