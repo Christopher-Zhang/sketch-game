@@ -57,6 +57,7 @@ function GameCanvas(props: Props) {
     };
 
     const draw = (canvasMessage: CanvasMessage, ctx: CanvasRenderingContext2D) => {
+        ctx.beginPath();
         ctx.lineWidth = canvasMessage.lineWidth;
         ctx.strokeStyle = canvasMessage.color;
         ctx.lineCap = "round";
