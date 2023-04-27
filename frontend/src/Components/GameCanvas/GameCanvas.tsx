@@ -1,14 +1,17 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Colors, LineWidth } from '../../constants/enums';
+import { JsonObject, SendJsonMessage } from 'react-use-websocket/dist/lib/types';
+import { ReadyState } from 'react-use-websocket';
+import { clearCanvas, setCanvasDimensions } from '../../utils/canvas';
+import { CanvasMessage } from '../../constants/types';
 
 type Props = {
-    // registerCanvasClearer: Function,
-    // registerLineColorPicker: Function,
-    // registerToolPicker: Function,
-    // registerBackgroundColorPicker: Function,
-    // lineColor: Colors,
-    // backgroundColor: Colors,
-    // doClearCanvas: boolean,
+    sendJsonMessage: SendJsonMessage,
+    lastMessage: MessageEvent<any> | null,
+    readyState: ReadyState,
+    activePlayer: boolean,
+    userId: number,
+    gameId: number
 };
 
 
@@ -27,56 +30,47 @@ function GameCanvas(props: Props) {
     const [currentTool, setCurrentTool] = useState();
     const [backgroundColor, setBackgroundColor] = useState(Colors.White);
 
-    const setCanvasDimensions = () => {
-        console.log("resetting");
-        if (!canvas.current) {
-            console.error("ERROR COULD NOT FIND CANVAS");
-            return;
-        }
-
-        // fix the stretch by CSS
-        console.log(`OLD: width ${(canvas.current as HTMLCanvasElement).width} height ${(canvas.current as HTMLCanvasElement).height}`);
-        // let adjustedWidth = (canvas.current as HTMLCanvasElement).height * ((canvas.current as HTMLCanvasElement).clientWidth / (canvas.current as HTMLCanvasElement).clientHeight);
-        // let adjustedHeight = (canvas.current as HTMLCanvasElement).width * ((canvas.current as HTMLCanvasElement).clientHeight / (canvas.current as HTMLCanvasElement).clientWidth);
-        let adjustedWidth = canvas.current?.parentElement?.clientWidth as number;
-        let adjustedHeight = canvas.current?.parentElement?.clientHeight as number;
-        let scaleX = adjustedWidth / (canvas.current as HTMLCanvasElement).width;
-        let scaleY = adjustedHeight / (canvas.current as HTMLCanvasElement).height;
-        console.log(`scalex: ${scaleX} scaley: ${scaleY}`);
-        ctx.current?.scale(scaleX, scaleY);
-        let image = (ctx.current?.getImageData(0, 0, (canvas.current as HTMLCanvasElement).width, (canvas.current as HTMLCanvasElement).height));
-
-        (canvas.current as HTMLCanvasElement).width = adjustedWidth;
-        (canvas.current as HTMLCanvasElement).height = adjustedHeight;
-        console.log(`NEW width ${adjustedWidth} height ${adjustedHeight}`);
-        canvasOffsetX.current = (canvas.current as HTMLCanvasElement).offsetLeft;
-        canvasOffsetY.current = (canvas.current as HTMLCanvasElement).offsetTop;
-        canvasWidth.current = (canvas.current as HTMLCanvasElement).width;
-        canvasHeight.current = (canvas.current as HTMLCanvasElement).height;
-        // console.log(`left: ${canvasOffsetX.current}, top: ${canvasOffsetY.current}`);
-        // console.log(`w: ${canvasWidth.current}, h: ${canvasHeight.current}`);
-        ctx.current?.putImageData(image as ImageData, 0, 0);
+    const _setCanvasDimensions = () => {
+        [canvasOffsetX.current, canvasOffsetY.current, canvasWidth.current, canvasHeight.current] = 
+            setCanvasDimensions(canvas.current as HTMLCanvasElement, ctx.current as CanvasRenderingContext2D);
     };
 
-    const clearCanvas = () => {
-        if (!canvas || !ctx) {
-            console.error("COULD NOT FIND CANVAS")
-            return;
-        }
-        // (ctx.current as CanvasRenderingContext2D).clearRect(0, 0, (canvas.current as HTMLCanvasElement).width, (canvas.current as HTMLCanvasElement).height);
-        ctx.current?.clearRect(0, 0, (canvas.current as HTMLCanvasElement).width, (canvas.current as HTMLCanvasElement).height);
-        console.log("Cleared canvas!");
-        // context.clearRect(0, 0, canvas.width, canvas.height);
+    const _clearCanvas = () => {
+        clearCanvas(canvas.current as HTMLCanvasElement, ctx.current as CanvasRenderingContext2D);
+    };
+
+    const broadcast = (lineX: number, lineY: number) => {
+        if (!props.activePlayer) return;
+        let canvasMessage: CanvasMessage = {
+            userId: props.userId,
+            gameId: props.gameId,
+            color: lineColor,
+            lineWidth: lineWidth,
+            startX: startX,
+            startY: startY,
+            lineX: lineX,
+            lineY: lineY
+        };
+        draw(canvasMessage, ctx.current as CanvasRenderingContext2D);
+        console.log("broadcasting canvasMessage: %o", canvasMessage);
+        props.sendJsonMessage(canvasMessage);
+    };
+
+    const draw = (canvasMessage: CanvasMessage, ctx: CanvasRenderingContext2D) => {
+        ctx.lineWidth = canvasMessage.lineWidth;
+        ctx.strokeStyle = canvasMessage.color;
+        ctx.lineCap = "round";
+        ctx.moveTo(canvasMessage.startX, canvasMessage.startY);
+        ctx.lineTo(canvasMessage.lineX, canvasMessage.lineY);
+        ctx.stroke();
     };
 
     const handleColorChange = (e:React.MouseEvent<HTMLButtonElement>) => {
         let id = (e.target as HTMLButtonElement).id;
         let match = id.match(/-(.+)/);
         if (match && match[1]) {
-            let str = match[1];
-            str = str.charAt(0).toUpperCase() + str.slice(1);
-            let color = Colors[str as keyof typeof Colors]
-            // console.log("Setting color to : %o", color);
+            let str = match[1].charAt(0).toUpperCase() + match[1].slice(1);
+            let color = Colors[str as keyof typeof Colors];
             setLineColor(color);
         }
     };
@@ -96,6 +90,7 @@ function GameCanvas(props: Props) {
     };
 
     const handleMouseDown = (e: React.MouseEvent<HTMLElement>) => {
+        if (!props.activePlayer) return;
         (ctx.current as CanvasRenderingContext2D).strokeStyle = lineColor;
         let lineX = e.pageX - canvasOffsetX.current;
         let lineY = e.pageY - canvasOffsetY.current;
@@ -104,41 +99,47 @@ function GameCanvas(props: Props) {
         setStartX(e.clientX);
         setStartY(e.clientY);
         // ctx.current?.beginPath();
+        // setStartX(lineX);
+        // setStartY(lineY);
+        // (ctx.current as CanvasRenderingContext2D).moveTo(lineX, lineY);
     };
+
     const handleMouseMove = (e: React.MouseEvent<HTMLElement>) => {
-        if(!isPainting) return;
-        (ctx.current as CanvasRenderingContext2D).strokeStyle = lineColor;
-        console.log("painting");
+        if(!isPainting || !props.activePlayer) return;
         let lineX = e.pageX - canvasOffsetX.current;
         let lineY = e.pageY - canvasOffsetY.current;
-        (ctx.current as CanvasRenderingContext2D).lineWidth = lineWidth;
-        (ctx.current as CanvasRenderingContext2D).lineCap = "round";
-        (ctx.current as CanvasRenderingContext2D).lineTo(lineX, lineY);
-        (ctx.current as CanvasRenderingContext2D).stroke();
+        broadcast(lineX, lineY);
+
+        // (ctx.current as CanvasRenderingContext2D).strokeStyle = lineColor;
+        // console.log("painting");
+        // (ctx.current as CanvasRenderingContext2D).lineWidth = lineWidth;
+        // (ctx.current as CanvasRenderingContext2D).lineCap = "round";
+        // (ctx.current as CanvasRenderingContext2D).lineTo(lineX, lineY);
+        // (ctx.current as CanvasRenderingContext2D).stroke();
         // console.log(`clientX: ${e.clientX}, clientY: ${e.clientY}`);
         // console.log(`pageX: ${e.pageX}, pageY: ${e.pageY}`);
         // console.log(`lineX: ${lineX}, lineY: ${lineY}`);
-
     };
+
     const handleMouseUp = (e: React.MouseEvent<HTMLElement>) => {
+
         (ctx.current as CanvasRenderingContext2D).strokeStyle = lineColor;
         setIsPainting(false);
-        if (!isPainting) return;
+        if(!isPainting || !props.activePlayer) return;
         let lineX = e.pageX - canvasOffsetX.current;
         let lineY = e.pageY - canvasOffsetY.current;
-        (ctx.current as CanvasRenderingContext2D).lineTo(lineX, lineY);
-        (ctx.current as CanvasRenderingContext2D).stroke();
-        (ctx.current as CanvasRenderingContext2D).beginPath();
+        broadcast(lineX, lineY);
+        // (ctx.current as CanvasRenderingContext2D).lineTo(lineX, lineY);
+        // (ctx.current as CanvasRenderingContext2D).stroke();
+        // (ctx.current as CanvasRenderingContext2D).beginPath();
     }
+
     useEffect(() => {
         let foundCanvas = document.getElementById('game-canvas');
         canvas.current = foundCanvas as HTMLCanvasElement;
         ctx.current = (canvas.current as HTMLCanvasElement).getContext("2d");
-        setCanvasDimensions();
-        window.addEventListener("resize", setCanvasDimensions);
-        // props.registerBackgroundColorPicker(setBackgroundColor);
-        // props.registerCanvasClearer(clearCanvas);
-        // props.registerLineColorPicker(setLineColor);
+        _setCanvasDimensions();
+        window.addEventListener("resize", _setCanvasDimensions);
     }, []);
 
     // props.registerToolPicker();
@@ -218,7 +219,7 @@ function GameCanvas(props: Props) {
                         return <button onClick={(e) => handleColorChange(e)} id={`changeColor-${color}`} className='w-8 h-8 m-0.5 rounded-md' style={isActive ? activeStyle : inactiveStyle}></button>;
                     })}
                 </div>
-                <button className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mx-3' onClick={clearCanvas}>Clear</button>
+                <button className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mx-3' onClick={_clearCanvas}>Clear</button>
             </div>
         </div>
     );

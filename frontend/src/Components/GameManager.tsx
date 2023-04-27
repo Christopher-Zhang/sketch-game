@@ -7,19 +7,13 @@ import ChatDisplay from './UI/ChatDisplay';
 import { Colors } from '../constants/enums';
 
 type Props = {}
-interface RegisterRequestBody {
-    username: string,
-    user_id: number,
-    game_id: number
-}
 
 function GameManager({ }: Props) {
     const [socketUrl, setSocketUrl] = useState("");
     const [chatHistory, setChatHistory] = useState(["message 1", "message 2", "message 3"]);
-    const [clearCanvas, setClearCanvas] = useState(() => {});
-    const [pickLineColor, setPickLineColor] = useState(() => {});
-    const [pickTool, setPickTool] = useState(() => {});
-    const [pickBackgroundColor, setPickBackgroundColor] = useState(() => {});
+    const [userId, setUserId] = useState(-1);
+    const [username, setUsername] = useState("");
+    const [gameId, setGameId] = useState(-1);
 
     const {sendJsonMessage, lastMessage, readyState}= useWebSocket(
         socketUrl, {
@@ -50,7 +44,14 @@ function GameManager({ }: Props) {
         <div className='game-manager grid grid-cols-7 gap-4'>
             <div className='col-span-1 px-2 pb-3 border-2 border-black'><PlayerDisplay /></div>
             <div className='col-span-4 px-2'>
-                <GameCanvas />
+                <GameCanvas 
+                    sendJsonMessage={sendJsonMessage}
+                    lastMessage={lastMessage}
+                    readyState={readyState}
+                    activePlayer={true}
+                    userId={userId}
+                    gameId={gameId}
+                />
                 {/* <button onClick={pickLineColor(Colors.Blue)}>Color</button> */}
                 {/* <button onClick={() => clearCanvas()}>Clear</button> */}
             </div>

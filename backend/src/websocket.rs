@@ -19,7 +19,13 @@ pub struct ChatMessage {
 pub struct CanvasMessage {
     pub user_id: usize,
     pub game_id: usize,
-    pub color: Color
+    pub color: Color,
+    pub line_width: usize,
+    pub start_x: usize,
+    pub start_y: usize,
+    pub line_x: usize,
+    pub line_y: usize,
+
 }
 
 #[derive(Debug, Serialize, Deserialize)]
