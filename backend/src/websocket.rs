@@ -9,6 +9,7 @@ use warp::{http::StatusCode, Reply};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChatMessage {
+    pub ts: usize,
     pub user_id: usize,
     pub username: String,
     pub game_id: usize,
@@ -17,6 +18,7 @@ pub struct ChatMessage {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CanvasMessage {
+    pub ts: usize,
     pub user_id: usize,
     pub game_id: usize,
     pub color: Color,
@@ -48,6 +50,7 @@ pub enum Color {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GameStateMessage {
+    pub ts: usize,
     pub debug: String
 }
 
@@ -95,7 +98,7 @@ async fn client_msg(id: &str, msg: Message, clients: &Clients) -> Result<impl Re
         Ok(v) => v,
         Err(_) => "",
     };
-    let obj: MessageEnvelope = serde_json::from_str(raw).unwrap();
+    let obj: MessageEnvelope = serde_json::from_str::<MessageEnvelope>(raw).unwrap();
     // log(format!("Parsed: {:?}", obj));
     // log(format!("message: {}", raw));
 
@@ -155,11 +158,19 @@ pub async fn send_msg_by_id(msg: Message, id: String, clients: &Clients) -> Resu
 
 // send message to specific client
 fn send_msg_to_client(msg: Message, client: &Client) {
-    if let Some(sender) = &client.sender {
-        let _ = sender.send(Ok(msg));
-    }
-    else {
-        logerr(format!("Failure to send message {:?}", msg.to_str()));
+    log(format!("Sending {:?} to {:?}", msg, client));
+    let mut success = false;
+    // if let Some(sender) = &client.sender {
+    //     let _ = sender.send(Ok(msg));
+    // }
+    // else {
+    //     logerr(format!("Failure to send message {:?}", msg.to_str()));
+    // }
+    while !success {
+        if let Some(sender) = &client.sender {
+            let _ = sender.send(Ok(msg.clone()));
+            success = true;
+        }
     }
 }
 
@@ -167,7 +178,7 @@ pub async fn send_msg_from_id(msg: Message, id: String, clients: &Clients) -> Re
     clients.read()
         .await
         .iter()
-        .filter(|(uuid, _)| uuid.as_str() == id.as_str())
+        .filter(|(uuid, _)| uuid.as_str() != id.as_str())
         .for_each(|(_, client)|{
             send_msg_to_client(msg.clone(), client);
         });

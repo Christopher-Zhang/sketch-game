@@ -1,13 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Colors, LineWidth } from '../../constants/enums';
-import { JsonObject, SendJsonMessage } from 'react-use-websocket/dist/lib/types';
+import { SendJsonMessage } from 'react-use-websocket/dist/lib/types';
 import { ReadyState } from 'react-use-websocket';
 import { clearCanvas, setCanvasDimensions } from '../../utils/canvas';
-import { CanvasMessage } from '../../constants/types';
+import { CanvasMessage, MessageEnvelope } from '../../constants/types';
 
 type Props = {
     sendJsonMessage: SendJsonMessage,
-    lastMessage: MessageEvent<any> | null,
+    lastMessage: MessageEnvelope,
     readyState: ReadyState,
     activePlayer: boolean,
     userId: number,
@@ -42,28 +42,36 @@ function GameCanvas(props: Props) {
     const broadcast = (lineX: number, lineY: number) => {
         if (!props.activePlayer) return;
         let canvasMessage: CanvasMessage = {
-            userId: props.userId,
-            gameId: props.gameId,
+            ts: Date.now(),
+            user_id: props.userId,
+            game_id: props.gameId,
             color: lineColor,
-            lineWidth: lineWidth,
-            startX: startX,
-            startY: startY,
-            lineX: lineX,
-            lineY: lineY
+            line_width: lineWidth,
+            start_x: startX === -1 ? lineX : startX,
+            start_y: startY === -1 ? lineY : startY,
+            line_x: lineX,
+            line_y: lineY
         };
         draw(canvasMessage, ctx.current as CanvasRenderingContext2D);
-        console.log("broadcasting canvasMessage: %o", canvasMessage);
-        props.sendJsonMessage(canvasMessage);
+        console.log("broadcasting: %o", canvasMessage);
+        let envelope: MessageEnvelope = {
+            chat: null,
+            canvas: canvasMessage,
+            gameState: null,
+        };
+        props.sendJsonMessage(envelope);
     };
 
     const draw = (canvasMessage: CanvasMessage, ctx: CanvasRenderingContext2D) => {
         ctx.beginPath();
-        ctx.lineWidth = canvasMessage.lineWidth;
+        ctx.lineWidth = canvasMessage.line_width;
         ctx.strokeStyle = canvasMessage.color;
         ctx.lineCap = "round";
-        ctx.moveTo(canvasMessage.startX, canvasMessage.startY);
-        ctx.lineTo(canvasMessage.lineX, canvasMessage.lineY);
+        ctx.moveTo(canvasMessage.start_x, canvasMessage.start_y);
+        ctx.lineTo(canvasMessage.line_x, canvasMessage.line_y);
         ctx.stroke();
+        setStartX(canvasMessage.line_x);
+        setStartY(canvasMessage.line_y);
     };
 
     const handleColorChange = (e:React.MouseEvent<HTMLButtonElement>) => {
@@ -97,11 +105,11 @@ function GameCanvas(props: Props) {
         let lineY = e.pageY - canvasOffsetY.current;
         if (lineX < 0 || lineX > canvasWidth.current || lineY < 0 || lineY > canvasHeight.current) return;
         setIsPainting(true);
-        setStartX(e.clientX);
-        setStartY(e.clientY);
+        // setStartX(e.clientX);
+        // setStartY(e.clientY);
         // ctx.current?.beginPath();
-        // setStartX(lineX);
-        // setStartY(lineY);
+        setStartX(lineX);
+        setStartY(lineY);
         // (ctx.current as CanvasRenderingContext2D).moveTo(lineX, lineY);
     };
 
@@ -130,11 +138,21 @@ function GameCanvas(props: Props) {
         let lineX = e.pageX - canvasOffsetX.current;
         let lineY = e.pageY - canvasOffsetY.current;
         broadcast(lineX, lineY);
+        setStartX(-1);
+        setStartY(-1);
         // (ctx.current as CanvasRenderingContext2D).lineTo(lineX, lineY);
         // (ctx.current as CanvasRenderingContext2D).stroke();
         // (ctx.current as CanvasRenderingContext2D).beginPath();
     }
 
+    // draw when we get a new message
+    useEffect(() => {
+        if (!props.lastMessage.canvas) return;
+
+        let canvasMessage: CanvasMessage = props.lastMessage.canvas as CanvasMessage;
+        draw(canvasMessage, ctx.current as CanvasRenderingContext2D);
+    }, [props.lastMessage.canvas, props.lastMessage.canvas?.ts]);
+    
     useEffect(() => {
         let foundCanvas = document.getElementById('game-canvas');
         canvas.current = foundCanvas as HTMLCanvasElement;

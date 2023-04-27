@@ -5,15 +5,22 @@ import { useWebSocket } from 'react-use-websocket/dist/lib/use-websocket';
 import PlayerDisplay from './UI/PlayerDisplay';
 import ChatDisplay from './UI/ChatDisplay';
 import { Colors } from '../constants/enums';
+import { MessageEnvelope } from '../constants/types';
 
 type Props = {}
+const emptyMessageEnvelope: MessageEnvelope = {
+    chat: null,
+    canvas: null,
+    gameState: null
+};
 
 function GameManager({ }: Props) {
     const [socketUrl, setSocketUrl] = useState("");
     const [chatHistory, setChatHistory] = useState(["message 1", "message 2", "message 3"]);
-    const [userId, setUserId] = useState(-1);
+    const [userId, setUserId] = useState(Math.floor(Math.random() * 100));
     const [username, setUsername] = useState("");
-    const [gameId, setGameId] = useState(-1);
+    const [gameId, setGameId] = useState(1);
+    const [lastMessageJson, setLastMessageJson] = useState(emptyMessageEnvelope);
 
     const {sendJsonMessage, lastMessage, readyState}= useWebSocket(
         socketUrl, {
@@ -29,9 +36,12 @@ function GameManager({ }: Props) {
             return;
         }
         // console.log("Message: %o", JSON.stringify(lastJsonMessage));
-        console.log("Raw Message: ", lastMessage);
-        let text = lastMessage?.data;
-        setChatHistory((prev) => [...prev, text]);
+        // console.log("Raw Message: ", lastMessage);
+        // let text = lastMessage?.data;
+        // setChatHistory((prev) => [...prev, text]);
+        console.log(lastMessage.data);
+        let lastMessageJson: MessageEnvelope = JSON.parse(lastMessage.data);
+        setLastMessageJson(lastMessageJson);
     },[lastMessage]);
 
 
@@ -45,8 +55,8 @@ function GameManager({ }: Props) {
             <div className='col-span-1 px-2 pb-3 border-2 border-black'><PlayerDisplay /></div>
             <div className='col-span-4 px-2'>
                 <GameCanvas 
-                    sendJsonMessage={sendJsonMessage}
-                    lastMessage={lastMessage}
+                    sendJsonMessage={(e) => {console.log("e: %o", e); sendJsonMessage(e);}}
+                    lastMessage={lastMessageJson}
                     readyState={readyState}
                     activePlayer={true}
                     userId={userId}

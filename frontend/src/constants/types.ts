@@ -7,34 +7,31 @@ export interface RegisterRequestBody {
     game_id: number
 }
 
-export interface ChatMessage {
+export interface ChatMessage extends JsonObject{
     user_id: number,
     username: string,
     game_id: number,
     message: string
 }
 
-export interface CanvasAction {
-
-}
-
 export interface CanvasMessage extends JsonObject{
-    userId: number,
-    gameId: number,
+    ts: number,
+    user_id: number,
+    game_id: number,
     color: Colors,
-    lineWidth: number,
-    startX: number,
-    startY: number,
-    lineX: number,
-    lineY: number,
+    line_width: number,
+    start_x: number,
+    start_y: number,
+    line_x: number,
+    line_y: number,
 }
 
-export interface GameStateMessage {
+export interface GameStateMessage extends JsonObject{
 
 }
 
-export interface MessageEnvelope {
+export interface MessageEnvelope extends JsonObject{
     chat: ChatMessage | null,
     canvas: CanvasMessage | null,
-    game_state: GameStateMessage | null,
+    gameState: GameStateMessage | null,
 }
