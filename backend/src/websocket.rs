@@ -1,3 +1,4 @@
+use crate::utils::current_unix_timestamp;
 use crate::{Clients, Client, Result, game::handle_message, logerr, log};
 
 use futures::{FutureExt, StreamExt};
@@ -17,17 +18,20 @@ pub struct ChatMessage {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct CanvasEvent {
+    start_x: usize,
+    start_y: usize,
+    line_x: usize,
+    line_y: usize,
+}
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CanvasMessage {
     pub ts: usize,
     pub user_id: usize,
     pub game_id: usize,
     pub color: Color,
     pub line_width: usize,
-    pub start_x: usize,
-    pub start_y: usize,
-    pub line_x: usize,
-    pub line_y: usize,
-
+    pub canvas_events: Vec<CanvasEvent>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -51,7 +55,7 @@ pub enum Color {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GameStateMessage {
     pub ts: usize,
-    pub debug: String
+    pub player_list: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -71,11 +75,24 @@ pub async fn client_connection(websocket: WebSocket, id: String, clients: Client
             logerr(format!("Error sending websocket message: {}", e));
         }
     }));
-
+    let game_id = client.game_id;
     client.sender = Some(client_sender);
+    log(format!("client {:?}", client.clone()));
     clients.write().await.insert(id.clone(), client);
-
     log(format!("connected to {}", id));
+    
+    // update clients' player list
+    let game_state_message: GameStateMessage = GameStateMessage { 
+        ts: current_unix_timestamp(), 
+        player_list: clients.read().await.iter().filter(|(_, client)| client.game_id == game_id).map(|(_, client)| {client.username.clone()}).collect()
+    };
+    let message_envelope = MessageEnvelope {
+        chat: None,
+        canvas: None,
+        game_state: Some(game_state_message)
+    };
+    let msg = Message::text(serde_json::to_string(&message_envelope).expect("Failed to encode to json"));
+    send_msg_by_game_id(msg, game_id, &clients).await.expect("Failed to send player list");
 
     while let Some(result) = client_ws_rcv.next().await {
         let msg = match result {
@@ -85,7 +102,7 @@ pub async fn client_connection(websocket: WebSocket, id: String, clients: Client
                 break;
             }
         };
-        client_msg(&id, msg, &clients).await.expect("Failed to send message");
+        client_msg(&id, msg, &clients).await.expect("Failed to exist");
     }
 
     clients.write().await.remove(&id);
@@ -93,45 +110,40 @@ pub async fn client_connection(websocket: WebSocket, id: String, clients: Client
 }
 
 async fn client_msg(id: &str, msg: Message, clients: &Clients) -> Result<impl Reply> {
-    log(format!("Received message from {}: {:?}", id, msg));
+    log(format!("Received message from {}", id));
     let raw = match msg.to_str() {
         Ok(v) => v,
         Err(_) => "",
     };
-    let obj: MessageEnvelope = serde_json::from_str::<MessageEnvelope>(raw).unwrap();
-    // log(format!("Parsed: {:?}", obj));
-    // log(format!("message: {}", raw));
 
-    // TODO make a chat message struct and use that as the message instead of the ws message
-    // if raw == "ping" || raw == "ping\n" {
-    //     log("received ping".to_string());
-    //     match send_msg_by_id(Message::text("pong!"), id.to_string(), clients).await {
-    //         Ok(r) => (),
-    //         Err(e) => logerr(format!("Error in sending message {:?}", e)),
-    //     }
-    //     return;
-    // }
+    if raw.len() == 0 {
+        log("Length = 0".to_string());
+        Ok(StatusCode::OK)
+    }
+    else {
+        let obj: MessageEnvelope = serde_json::from_str::<MessageEnvelope>(raw).expect("Failed to parse");
+        handle_message(id, obj, clients.clone()).await;
 
-    handle_message(id, obj, clients.clone()).await;
+        Ok(StatusCode::OK)
+    }
 
-    Ok(StatusCode::OK)
 
 }
 
 // // send message to all players in a specific game
-// pub async fn send_msg_by_game_id(msg: Message, game_id: usize, clients: Clients) -> Result<impl Reply> {
-//     clients.read()
-//         .await
-//         .iter()
-//         .filter(|(_, client)| 
-//             client.game_id == game_id
-//         )
-//         .for_each(|(_, client)| {
-//             send_msg_to_client(msg.clone(), client);
-//         });
+pub async fn send_msg_by_game_id(msg: Message, game_id: usize, clients: &Clients) -> Result<impl Reply> {
+    clients.read()
+        .await
+        .iter()
+        .filter(|(_, client)| 
+            client.game_id == game_id
+        )
+        .for_each(|(_, client)| {
+            send_msg_to_client(msg.clone(), client);
+        });
 
-//     Ok(StatusCode::OK)
-// }
+    Ok(StatusCode::OK)
+}
 
 // // send message to specific user id
 // pub async fn send_msg_by_user_id(msg: Message, user_id: usize, clients: Clients) -> Result<impl Reply> {
@@ -158,7 +170,7 @@ pub async fn send_msg_by_id(msg: Message, id: String, clients: &Clients) -> Resu
 
 // send message to specific client
 fn send_msg_to_client(msg: Message, client: &Client) {
-    log(format!("Sending {:?} to {:?}", msg, client));
+    log(format!("Sending message to {:?}", client));
     let mut success = false;
     // if let Some(sender) = &client.sender {
     //     let _ = sender.send(Ok(msg));
@@ -186,4 +198,12 @@ pub async fn send_msg_from_id(msg: Message, id: String, clients: &Clients) -> Re
     Ok(StatusCode::OK)
 }
 
+// async fn show_clients(clients: &Clients) {
+//     clients.read()
+//         .await
+//         .iter()
+//         .for_each(|(_,client)|{
+//             log(format!("CLIENT OBJECT {:?}", client));
+//         });
+// }
 

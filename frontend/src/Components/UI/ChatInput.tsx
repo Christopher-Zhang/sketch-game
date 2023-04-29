@@ -1,65 +1,54 @@
 import React, { useEffect, useState } from 'react';
 import { useWebSocket } from 'react-use-websocket/dist/lib/use-websocket';
-import ChatDisplay from './ChatDisplay';
+import ChatHistory from './ChatHistory';
+import { SendJsonMessage } from 'react-use-websocket/dist/lib/types';
+import { ChatMessage, MessageEnvelope } from '../../constants/types';
 
-type Props = {}
+type Props = {
+    sendJsonMessage: SendJsonMessage,
+    lastMessage: MessageEnvelope,
+    activePlayer: boolean,
+    userId: number,
+    username: string,
+    gameId: number
+};
 
-function ChatInput({ }: Props) {
-    // const socketUrl = 'ws://127.0.0.1:8000/ws'; //TODO add
-    // const [socketUrl, setSocketUrl] = useState("");
+function ChatInput(props: Props) {
     const [chatInput, setChatInput] = useState("");
-    // const {sendJsonMessage, lastMessage, readyState}= useWebSocket(
-    //     socketUrl, {
-    //         onOpen: () => {
-    //             console.log(`Connected to ${socketUrl}!`);
-    //         },
-    //         shouldReconnect: closeEvent => true,
-    //         share: true,
-    //     }
-    // );
     
-    const handleChatSubmit: Function = (submitEvent: KeyboardEvent) => {
+    const handleChatSubmit: Function = (submitEvent: React.KeyboardEvent<HTMLInputElement>) => {
         if(submitEvent.key === 'Enter') {
-            let message = {
-                user_id: 1,
-                username: 'keypup',
-                game_id: 1,
+            // submitEvent.target.
+            let cm: ChatMessage = {
+                ts: Date.now(),
+                user_id: props.userId,
+                username: props.username,
+                game_id: props.gameId,
                 message: chatInput,
+            };
+            let me: MessageEnvelope = {
+                chat: cm,
+                canvas: null,
+                game_state: null,
             }
-            // sendJsonMessage(message);
-            console.log(`Sending %o`, message);
+            console.log(`Sending %o`, me);
+            props.sendJsonMessage(me);
+            setChatInput("");
         }
-    }
-    const handleChatInput: Function = (changeEvent: Event) => {
-        // @ts-ignore
+    };
+    const handleChatInput: Function = (changeEvent: React.ChangeEvent<HTMLInputElement>) => {
         let val = changeEvent.target.value;
         console.log(val);
         setChatInput(val);
-    }
-    // const opts = {
-    //     headers: {'Content-Type': 'application/json'},
-    //     'body': JSON.stringify({"username": "keypup", "user_id": 1, "game_id": 1}),
-    //     'method': 'POST',
-    // };
-    // useEffect(() => {
-    //     console.log("Effect!");
-    //     fetch("http://localhost:8000/register", opts)
-    //         .then((res) => res.json())
-    //         .then((data) => {setSocketUrl(data["url"])});
-    // }, []);
+    };
 
-    // useEffect(() => {
-    //     // console.log("Message: %o", JSON.stringify(lastJsonMessage));
-    //     console.log("Raw Message: ", lastMessage);
-    //     let text = lastMessage?.data;
-    //     setChat((prev) => [...prev, text]);
-    // },[lastMessage]);
     return (
     <div className="chatInputBox row-span-1 w-full">
         <input
             type="text"
             className="chatInputArea border-2 w-full"
             placeholder='enter chat message...'
+            value={chatInput}
             onChange={(event) => handleChatInput(event)}
             onKeyDown={(event) => handleChatSubmit(event)}
         ></input>

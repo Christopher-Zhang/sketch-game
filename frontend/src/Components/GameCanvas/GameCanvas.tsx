@@ -3,14 +3,14 @@ import { Colors, LineWidth } from '../../constants/enums';
 import { SendJsonMessage } from 'react-use-websocket/dist/lib/types';
 import { ReadyState } from 'react-use-websocket';
 import { clearCanvas, setCanvasDimensions } from '../../utils/canvas';
-import { CanvasMessage, MessageEnvelope } from '../../constants/types';
+import { CanvasEvent, CanvasMessage, MessageEnvelope } from '../../constants/types';
 
 type Props = {
     sendJsonMessage: SendJsonMessage,
     lastMessage: MessageEnvelope,
-    readyState: ReadyState,
     activePlayer: boolean,
     userId: number,
+    username: string,
     gameId: number
 };
 
@@ -18,6 +18,7 @@ type Props = {
 function GameCanvas(props: Props) {
     const ctx: React.MutableRefObject<CanvasRenderingContext2D|null> = useRef(null);
     const canvas: React.MutableRefObject<HTMLCanvasElement|null> = useRef(null);
+    const currentStroke: React.MutableRefObject<Array<CanvasEvent>> = useRef([]);
     const canvasOffsetX = useRef(0);
     const canvasOffsetY = useRef(0);
     const canvasWidth = useRef(0);
@@ -26,7 +27,7 @@ function GameCanvas(props: Props) {
     const [startX, setStartX] = useState(0);
     const [startY, setStartY] = useState(0);
     const [lineColor, setLineColor] = useState(Colors.Black);
-    const [lineWidth, setLineWidth] = useState(LineWidth.THIN);
+    const [lineWidth, setLineWidth] = useState(LineWidth.MEDIUM);
     const [currentTool, setCurrentTool] = useState();
     const [backgroundColor, setBackgroundColor] = useState(Colors.White);
 
@@ -39,39 +40,43 @@ function GameCanvas(props: Props) {
         clearCanvas(canvas.current as HTMLCanvasElement, ctx.current as CanvasRenderingContext2D);
     };
 
-    const broadcast = (lineX: number, lineY: number) => {
+    const broadcast = () => {
         if (!props.activePlayer) return;
+
         let canvasMessage: CanvasMessage = {
             ts: Date.now(),
             user_id: props.userId,
             game_id: props.gameId,
             color: lineColor,
             line_width: lineWidth,
-            start_x: startX === -1 ? lineX : startX,
-            start_y: startY === -1 ? lineY : startY,
-            line_x: lineX,
-            line_y: lineY
+            canvas_events: currentStroke.current
         };
-        draw(canvasMessage, ctx.current as CanvasRenderingContext2D);
-        console.log("broadcasting: %o", canvasMessage);
         let envelope: MessageEnvelope = {
             chat: null,
             canvas: canvasMessage,
-            gameState: null,
+            game_state: null,
         };
         props.sendJsonMessage(envelope);
     };
 
-    const draw = (canvasMessage: CanvasMessage, ctx: CanvasRenderingContext2D) => {
-        ctx.beginPath();
+    const enscribe = (ce: CanvasEvent) => {
+        currentStroke.current?.push(ce);
+    };
+
+    const configure = (canvasMessage: CanvasMessage, ctx: CanvasRenderingContext2D) => {
         ctx.lineWidth = canvasMessage.line_width;
         ctx.strokeStyle = canvasMessage.color;
         ctx.lineCap = "round";
-        ctx.moveTo(canvasMessage.start_x, canvasMessage.start_y);
-        ctx.lineTo(canvasMessage.line_x, canvasMessage.line_y);
+        ctx.beginPath();
+    };
+
+    const draw = (canvasEvent: CanvasEvent, ctx: CanvasRenderingContext2D) => {
+        ctx.beginPath();
+        ctx.moveTo(canvasEvent.start_x, canvasEvent.start_y);
+        ctx.lineTo(canvasEvent.line_x, canvasEvent.line_y);
         ctx.stroke();
-        setStartX(canvasMessage.line_x);
-        setStartY(canvasMessage.line_y);
+        setStartX(canvasEvent.line_x);
+        setStartY(canvasEvent.line_y);
     };
 
     const handleColorChange = (e:React.MouseEvent<HTMLButtonElement>) => {
@@ -117,8 +122,23 @@ function GameCanvas(props: Props) {
         if(!isPainting || !props.activePlayer) return;
         let lineX = e.pageX - canvasOffsetX.current;
         let lineY = e.pageY - canvasOffsetY.current;
-        broadcast(lineX, lineY);
-
+        let ce: CanvasEvent = {
+            start_x: startX,
+            start_y: startY,
+            line_x: lineX,
+            line_y: lineY
+        };
+        let cm: CanvasMessage = {
+            ts: Date.now(),
+            user_id: props.userId,
+            game_id: props.gameId,
+            color: lineColor,
+            line_width: lineWidth,
+            canvas_events: [ce]
+        };
+        enscribe(ce);
+        configure(cm, ctx.current as CanvasRenderingContext2D);
+        draw(ce, ctx.current as CanvasRenderingContext2D);
         // (ctx.current as CanvasRenderingContext2D).strokeStyle = lineColor;
         // console.log("painting");
         // (ctx.current as CanvasRenderingContext2D).lineWidth = lineWidth;
@@ -131,15 +151,16 @@ function GameCanvas(props: Props) {
     };
 
     const handleMouseUp = (e: React.MouseEvent<HTMLElement>) => {
-
-        (ctx.current as CanvasRenderingContext2D).strokeStyle = lineColor;
+        if(!isPainting || !props.activePlayer) return;        
         setIsPainting(false);
-        if(!isPainting || !props.activePlayer) return;
-        let lineX = e.pageX - canvasOffsetX.current;
-        let lineY = e.pageY - canvasOffsetY.current;
-        broadcast(lineX, lineY);
-        setStartX(-1);
-        setStartY(-1);
+        broadcast();
+        currentStroke.current = [];
+        // (ctx.current as CanvasRenderingContext2D).strokeStyle = lineColor;
+        // let lineX = e.pageX - canvasOffsetX.current;
+        // let lineY = e.pageY - canvasOffsetY.current;
+        // broadcast(lineX, lineY);
+        // setStartX(-1);
+        // setStartY(-1);
         // (ctx.current as CanvasRenderingContext2D).lineTo(lineX, lineY);
         // (ctx.current as CanvasRenderingContext2D).stroke();
         // (ctx.current as CanvasRenderingContext2D).beginPath();
@@ -148,9 +169,13 @@ function GameCanvas(props: Props) {
     // draw when we get a new message
     useEffect(() => {
         if (!props.lastMessage.canvas) return;
-
-        let canvasMessage: CanvasMessage = props.lastMessage.canvas as CanvasMessage;
-        draw(canvasMessage, ctx.current as CanvasRenderingContext2D);
+        console.log("props.lastMessage: %o", props.lastMessage);
+        let cm: CanvasMessage = props.lastMessage.canvas as CanvasMessage;
+        configure(cm, ctx.current as CanvasRenderingContext2D);
+        cm.canvas_events.forEach(event => {
+            draw(event, ctx.current as CanvasRenderingContext2D);
+        });
+        
     }, [props.lastMessage.canvas, props.lastMessage.canvas?.ts]);
     
     useEffect(() => {
@@ -165,6 +190,7 @@ function GameCanvas(props: Props) {
     const colors = Object.values(Colors);
     return (
         <div className='game-canvas-container flex flex-col h-[120%]'>
+            <div>{props.userId}</div>
             <div className='border-2 border-black'>
                 <canvas
                     id='game-canvas'
@@ -180,7 +206,7 @@ function GameCanvas(props: Props) {
                 
                 <div className='line-width mx-5 flex flex-row content-center m-0.5'>
                     {
-                        Object.keys(LineWidth).map((width) => {
+                        Object.keys(LineWidth).map((width, i) => {
                             if (!isNaN(Number(width))) return null;
                             let thisWidth = LineWidth[width as keyof typeof LineWidth];
                             let isActive = lineWidth === thisWidth;
@@ -206,13 +232,13 @@ function GameCanvas(props: Props) {
                                 innerStyle = {...innerStyle, ...outlineStyle};
                             }
                             return (
-                                <button className='rounded-full' style={innerStyle} id={`linewidth-${width}`} onClick={(e) => handleLineWidthChange(e)}></button>
+                                <button key={`color-${i}`} className='rounded-full' style={innerStyle} id={`linewidth-${width}`} onClick={(e) => handleLineWidthChange(e)}></button>
                             );
                         })
                     }
                 </div>
                 <div className='color-palette flex flex-row'>
-                    {colors.map((color: string) => {
+                    {colors.map((color: string, i: number) => {
                         let isActive = color === lineColor;
                         color = color.toLowerCase();
                         let colorConflicts = ['red', 'magenta'];
@@ -235,7 +261,7 @@ function GameCanvas(props: Props) {
                             // outlineColor: 'red'
                         };
 
-                        return <button onClick={(e) => handleColorChange(e)} id={`changeColor-${color}`} className='w-8 h-8 m-0.5 rounded-md' style={isActive ? activeStyle : inactiveStyle}></button>;
+                        return <button key={`button-${i}`} onClick={(e) => handleColorChange(e)} id={`changeColor-${color}`} className='w-8 h-8 m-0.5 rounded-md' style={isActive ? activeStyle : inactiveStyle}></button>;
                     })}
                 </div>
                 <button className='bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mx-3' onClick={_clearCanvas}>Clear</button>
