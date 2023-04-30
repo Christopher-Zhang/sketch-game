@@ -2,6 +2,7 @@ use crate::{Clients, Client, Result, websocket, log, logerr};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 use warp::{Reply, reply::json, ws::Message, http::StatusCode};
+use rand::Rng;
 
 #[derive(Deserialize, Debug)]
 pub struct RegisterRequest {
@@ -37,7 +38,7 @@ pub async fn publish_handler(event: Event, clients: Clients) -> Result<impl Repl
 }
 
 pub async fn register_handler(body: RegisterRequest, clients: Clients) -> Result<impl Reply> {
-    let user_id = body.user_id;
+    let user_id = get_unique_user_id(clients).await;
     let game_id: usize = body.game_id;
     let username: String = body.username;
     let uuid = Uuid::new_v4().as_simple().to_string();
@@ -47,6 +48,22 @@ pub async fn register_handler(body: RegisterRequest, clients: Clients) -> Result
     Ok(json(&RegisterResponse {
         url: format!("ws://127.0.0.1:8000/ws/{}", uuid),
     }))
+}
+
+async fn get_unique_user_id(clients: Clients) -> usize {
+    let mut user_id: usize = rand::thread_rng().gen::<usize>();
+    while !is_unique_user_id(user_id, &clients).await {
+        user_id = rand::thread_rng().gen::<usize>();
+    }
+    return user_id;
+}
+
+async fn is_unique_user_id(user_id: usize, clients: &Clients) -> bool {
+    let mut found_match = false;
+    found_match = clients.read().await.iter().any(|(_, client)| {
+        return client.user_id == user_id;
+    });
+    return !found_match;
 }
 
 async fn register_client(id: String, username: String, user_id: usize, game_id: usize, clients: Clients) {

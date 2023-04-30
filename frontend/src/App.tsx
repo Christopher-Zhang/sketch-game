@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import GameManager from './Components/GameManager';
+import { URLSearchParams } from 'url';
 
 function App() {
     const [gameId, setGameId] = useState(-1);
     const [username, setUsername] = useState("");
+    const urlParams = URLSearchParams();
     if (gameId && username) {
         return (
             <div className="app-wrapper p-2">
@@ -18,14 +20,14 @@ function App() {
         return (
             <div className='place-content-center'>
                 <div id='join-input-box'>
-                    {/* <input
+                    <input
                         type="text"
                         className="chatInputArea border-2 w-full"
                         placeholder='enter chat message...'
                         value={chatInput}
                         onChange={(event) => handleChatInput(event)}
                         onKeyDown={(event) => handleChatSubmit(event)}
-                    ></input> */}
+                    ></input>
                 </div>
             </div>
         )

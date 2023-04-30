@@ -10,15 +10,36 @@ mod handler;
 mod websocket;
 mod game;
 mod utils;
+
+type Result<T> = std::result::Result<T, Rejection>;
 #[derive(Debug, Clone)]
+
 pub struct Client {
     pub username: String,
     pub user_id: usize,
     pub game_id: usize,
     pub sender: Option<mpsc::UnboundedSender<std::result::Result<Message, warp::Error>>>,
 }
-type Result<T> = std::result::Result<T, Rejection>;
 type Clients = Arc<RwLock<HashMap<String, Client>>>;
+
+#[derive(Debug, Clone)]
+pub struct Player {
+    pub user_id: usize,
+    pub username: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct GameState {
+    pub active_player: usize,
+    pub scores: HashMap<usize, usize>,
+    pub 
+}
+#[derive(Debug, Clone)]
+pub struct Game {
+    pub game_id: usize,
+    pub player_list: Vec<Player>,
+    pub game_state:
+}
 
 #[tokio::main]
 async fn main() {
