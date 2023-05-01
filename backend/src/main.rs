@@ -30,20 +30,19 @@ pub struct Player {
 
 #[derive(Debug, Clone)]
 pub struct GameState {
+    pub game_id: usize,
     pub active_player: usize,
     pub scores: HashMap<usize, usize>,
-    pub 
-}
-#[derive(Debug, Clone)]
-pub struct Game {
-    pub game_id: usize,
+    pub round_start: usize,
+    pub round_end: usize,
     pub player_list: Vec<Player>,
-    pub game_state:
 }
+type Games = Arc<RwLock<HashMap<usize, GameState>>>;
 
 #[tokio::main]
 async fn main() {
     let clients: Clients = Arc::new(RwLock::new(HashMap::new()));
+    let games: Games = Arc::new(RwLock::new(HashMap::new()));
 
     let health_route = warp::path!("health").and_then(handler::health_handler);
 
@@ -87,6 +86,10 @@ async fn main() {
 
 fn with_clients(clients: Clients) -> impl Filter<Extract = (Clients,), Error = Infallible> + Clone {
     warp::any().map(move || clients.clone())
+}
+
+fn with_games(games: Games) -> impl Filter<Extract = (Games,), Error = Infallible> + Clone {
+    warp::any().map(move || games.clone())
 }
 
 pub fn log(message: String) {

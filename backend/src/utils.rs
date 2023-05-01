@@ -15,5 +15,4 @@ pub fn current_unix_timestamp() -> usize {
     };
 
     return time as usize;
-
 }

@@ -38,7 +38,7 @@ pub async fn publish_handler(event: Event, clients: Clients) -> Result<impl Repl
 }
 
 pub async fn register_handler(body: RegisterRequest, clients: Clients) -> Result<impl Reply> {
-    let user_id = get_unique_user_id(clients).await;
+    let user_id = get_unique_user_id(clients.clone()).await;
     let game_id: usize = body.game_id;
     let username: String = body.username;
     let uuid = Uuid::new_v4().as_simple().to_string();
@@ -59,14 +59,15 @@ async fn get_unique_user_id(clients: Clients) -> usize {
 }
 
 async fn is_unique_user_id(user_id: usize, clients: &Clients) -> bool {
-    let mut found_match = false;
-    found_match = clients.read().await.iter().any(|(_, client)| {
+    return !clients.read().await.iter().any(|(_, client)| {
         return client.user_id == user_id;
     });
-    return !found_match;
 }
 
 async fn register_client(id: String, username: String, user_id: usize, game_id: usize, clients: Clients) {
+    // create/join game
+
+    // add new player/client
     clients.write().await.insert(
         id,
         Client{

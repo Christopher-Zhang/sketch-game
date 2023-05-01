@@ -5,8 +5,15 @@ import { URLSearchParams } from 'url';
 function App() {
     const [gameId, setGameId] = useState(-1);
     const [username, setUsername] = useState("");
-    const urlParams = URLSearchParams();
-    if (gameId && username) {
+    const [usernameInput, setUsernameInput] = useState("");
+
+    const urlParams = new URLSearchParams(window.location.href);
+    const handleSubmit = (event: React.KeyboardEvent<HTMLInputElement>) => {
+        if (event.key === 'Enter') {
+            setUsername(usernameInput);
+        }
+    }
+    if (username) {
         return (
             <div className="app-wrapper p-2">
                 <GameManager 
@@ -24,9 +31,9 @@ function App() {
                         type="text"
                         className="chatInputArea border-2 w-full"
                         placeholder='enter chat message...'
-                        value={chatInput}
-                        onChange={(event) => handleChatInput(event)}
-                        onKeyDown={(event) => handleChatSubmit(event)}
+                        value={usernameInput}
+                        onChange={(event) => {setUsernameInput(event.target.value)}}
+                        onKeyDown={(event) => handleSubmit(event)}
                     ></input>
                 </div>
             </div>
