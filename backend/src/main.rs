@@ -29,13 +29,22 @@ pub struct Player {
 }
 
 #[derive(Debug, Clone)]
+pub enum PlayerState {
+    Drawing,
+    Guessing,
+    Guessed,
+    Spectator,
+}
+
+#[derive(Debug, Clone)]
 pub struct GameState {
     pub game_id: usize,
-    pub active_player: usize,
+    pub player_states: HashMap<usize, PlayerState>,
     pub scores: HashMap<usize, usize>,
     pub round_start: usize,
     pub round_end: usize,
     pub player_list: Vec<Player>,
+    pub current_word: String,
 }
 type Games = Arc<RwLock<HashMap<usize, GameState>>>;
 
@@ -51,11 +60,13 @@ async fn main() {
         .and(warp::post())
         .and(warp::body::json())
         .and(with_clients(clients.clone()))
+        .and(with_games(games.clone()))
         .and_then(handler::register_handler)
         .or(register
             .and(warp::delete())
             .and(warp::path::param())
             .and(with_clients(clients.clone()))
+            .and(with_games(games.clone()))
             .and_then(handler::unregister_handler)
         );
 
