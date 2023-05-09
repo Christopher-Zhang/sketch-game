@@ -1,15 +1,15 @@
-use crate::{utils::current_time};
-use tokio::sync::{mpsc, RwLock};
-use warp::hyper::Method;
-use warp::{ws::Message, Rejection, Filter};
-use std::sync::Arc;
+use crate::utils::current_time;
 use std::collections::HashMap;
 use std::convert::Infallible;
+use std::sync::Arc;
+use tokio::sync::{mpsc, RwLock};
+use warp::hyper::Method;
+use warp::{ws::Message, Filter, Rejection};
 
-mod handler;
-mod websocket;
 mod game;
+mod handler;
 mod utils;
+mod websocket;
 
 type Result<T> = std::result::Result<T, Rejection>;
 #[derive(Debug, Clone)]
@@ -67,13 +67,13 @@ async fn main() {
             .and(warp::path::param())
             .and(with_clients(clients.clone()))
             .and(with_games(games.clone()))
-            .and_then(handler::unregister_handler)
-        );
+            .and_then(handler::unregister_handler));
 
     let websocket_route = warp::path("ws")
         .and(warp::ws())
         .and(warp::path::param())
         .and(with_clients(clients.clone()))
+        .and(with_games(games.clone()))
         .and_then(handler::websocket_handler);
 
     let publish_route = warp::path!("publish")
@@ -81,10 +81,27 @@ async fn main() {
         .and(with_clients(clients.clone()))
         .and_then(handler::publish_handler);
 
-    let cors= warp::cors().allow_any_origin()
-        .allow_headers(vec!["Access-Control-Allow-Headers", "Access-Control-Request-Method", "Access-Control-Request-Headers", "Origin", "Accept", "X-Requested-With", "Content-Type"])
-        .allow_methods(&[Method::GET, Method::POST, Method::PUT, Method::PATCH, Method::DELETE, Method::OPTIONS, Method::HEAD]);
-    
+    let cors = warp::cors()
+        .allow_any_origin()
+        .allow_headers(vec![
+            "Access-Control-Allow-Headers",
+            "Access-Control-Request-Method",
+            "Access-Control-Request-Headers",
+            "Origin",
+            "Accept",
+            "X-Requested-With",
+            "Content-Type",
+        ])
+        .allow_methods(&[
+            Method::GET,
+            Method::POST,
+            Method::PUT,
+            Method::PATCH,
+            Method::DELETE,
+            Method::OPTIONS,
+            Method::HEAD,
+        ]);
+
     let routes = register_routes
         .or(websocket_route)
         .or(publish_route)
@@ -92,7 +109,7 @@ async fn main() {
         .with(cors);
 
     // GO!
-    warp::serve(routes).run(([127,0,0,1], 8000)).await;
+    warp::serve(routes).run(([127, 0, 0, 1], 8000)).await;
 }
 
 fn with_clients(clients: Clients) -> impl Filter<Extract = (Clients,), Error = Infallible> + Clone {

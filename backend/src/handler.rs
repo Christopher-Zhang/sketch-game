@@ -1,20 +1,22 @@
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
-use crate::{Clients, Client, Result, websocket, log, logerr, Games, GameState, Player, PlayerState};
+use crate::{
+    log, logerr, websocket, Client, Clients, GameState, Games, Player, PlayerState, Result,
+};
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
-use warp::{Reply, reply::json, ws::Message, http::StatusCode};
-use rand::Rng;
+use warp::{http::StatusCode, reply::json, ws::Message, Reply};
 
 #[derive(Deserialize, Debug)]
 pub struct RegisterRequest {
     username: String,
-    user_id: usize,
     game_id: usize,
 }
 #[derive(Serialize, Debug)]
 pub struct RegisterResponse {
     url: String,
+    user_id: usize,
 }
 #[derive(Deserialize, Debug)]
 pub struct Event {
@@ -23,7 +25,8 @@ pub struct Event {
 }
 
 pub async fn publish_handler(event: Event, clients: Clients) -> Result<impl Reply> {
-    clients.read()
+    clients
+        .read()
         .await
         .iter()
         .filter(|(_, client)| match event.game_id {
@@ -39,7 +42,11 @@ pub async fn publish_handler(event: Event, clients: Clients) -> Result<impl Repl
     Ok(StatusCode::OK)
 }
 
-pub async fn register_handler(body: RegisterRequest, clients: Clients, games: Games) -> Result<impl Reply> {
+pub async fn register_handler(
+    body: RegisterRequest,
+    clients: Clients,
+    games: Games,
+) -> Result<impl Reply> {
     let user_id = get_unique_user_id(clients.clone()).await;
     let game_id: usize = body.game_id;
     let username: String = body.username;
@@ -49,22 +56,29 @@ pub async fn register_handler(body: RegisterRequest, clients: Clients, games: Ga
     register_client(uuid.clone(), username, user_id, game_id, clients, games).await;
     Ok(json(&RegisterResponse {
         url: format!("ws://127.0.0.1:8000/ws/{}", uuid),
+        user_id,
     }))
 }
 
-async fn register_client(id: String, username: String, user_id: usize, game_id: usize, clients: Clients, games: Games) {
+async fn register_client(
+    id: String,
+    username: String,
+    user_id: usize,
+    game_id: usize,
+    clients: Clients,
+    games: Games,
+) {
     // create/join game
     let game = get_game_if_active(game_id, &games).await;
     match game {
-        Some(g) => (),
-        None => create_new_game(game_id, &games).await
+        Some(_) => (),
+        None => create_new_game(game_id, &games).await,
     }
-
 
     // add new player/client
     clients.write().await.insert(
         id,
-        Client{
+        Client {
             username,
             user_id,
             game_id,
@@ -84,7 +98,7 @@ pub async fn unregister_handler(id: String, clients: Clients, games: Games) -> R
             user_id = x.user_id;
             game_id = x.game_id;
             log(format!("Unregistering User: {}", x.user_id));
-        },
+        }
         None => {
             logerr(format!("Failed to unregister {}", id));
         }
@@ -95,10 +109,16 @@ pub async fn unregister_handler(id: String, clients: Clients, games: Games) -> R
     Ok(StatusCode::OK)
 }
 
-pub async fn websocket_handler(websocket: warp::ws::Ws, id: String, clients: Clients) -> Result<impl Reply> {
+pub async fn websocket_handler(
+    websocket: warp::ws::Ws,
+    id: String,
+    clients: Clients,
+    games: Games,
+) -> Result<impl Reply> {
     let client = clients.read().await.get(&id).cloned();
     match client {
-        Some(c) => Ok(websocket.on_upgrade(move |socket| websocket::client_connection(socket, id, clients, c))),
+        Some(c) => Ok(websocket
+            .on_upgrade(move |socket| websocket::client_connection(socket, id, clients, c, games))),
         None => Err(warp::reject::not_found()),
     }
 }
@@ -106,7 +126,6 @@ pub async fn websocket_handler(websocket: warp::ws::Ws, id: String, clients: Cli
 pub async fn health_handler() -> Result<impl Reply> {
     Ok(StatusCode::OK)
 }
-
 
 // helper functions
 
@@ -127,55 +146,68 @@ async fn is_unique_user_id(user_id: usize, clients: &Clients) -> bool {
 async fn get_game_if_active(game_id: usize, games: &Games) -> Option<GameState> {
     match games.read().await.get(&game_id) {
         Some(game) => Some(game.clone()),
-        None => None
+        None => None,
     }
 }
 
 async fn create_new_game(game_id: usize, games: &Games) {
     games.write().await.insert(
         game_id,
-        GameState { 
-            game_id: game_id, 
+        GameState {
+            game_id: game_id,
             player_states: HashMap::new(),
-            scores: HashMap::new(), 
-            round_start: 0, 
-            round_end: 0, 
+            scores: HashMap::new(),
+            round_start: 0,
+            round_end: 0,
             player_list: Vec::new(),
-            current_word: String::from("")
-        }
+            current_word: String::from(""),
+        },
     );
 }
 
 async fn remove_user_from_game(game_id: usize, user_id: usize, games: Games) {
     match games.write().await.get_mut(&game_id) {
         Some(game_state) => {
-            let index = game_state.player_list.iter().position(|x| x.user_id == user_id).unwrap();
+            let index = game_state
+                .player_list
+                .iter()
+                .position(|x| x.user_id == user_id)
+                .unwrap();
             game_state.player_list.remove(index);
             game_state.scores.remove(&user_id);
             game_state.player_states.remove(&user_id);
-        },
-        None => ()
+        }
+        None => (),
     }
 }
 
 async fn add_user_to_game(game_id: usize, user_id: usize, clients: &Clients, games: Games) {
-    let player = Player {user_id: user_id.clone(), username: get_username_from_user_id(user_id, &clients).await.expect("Failed to find user")};
+    let player = Player {
+        user_id: user_id.clone(),
+        username: get_username_from_user_id(user_id, &clients)
+            .await
+            .expect("Failed to find user"),
+    };
     match games.write().await.get_mut(&game_id) {
         Some(game_state) => {
             game_state.player_list.push(player);
             game_state.scores.insert(user_id, 0);
-            game_state.player_states.insert(user_id, PlayerState::Guessing);
-        },
-        None => ()
+            game_state
+                .player_states
+                .insert(user_id, PlayerState::Guessing);
+        }
+        None => (),
     }
 }
 
 async fn get_username_from_user_id(user_id: usize, clients: &Clients) -> Option<String> {
-    match clients.read().await.iter().find(|(_, client)| {
-        client.user_id == user_id
-    }) {
+    match clients
+        .read()
+        .await
+        .iter()
+        .find(|(_, client)| client.user_id == user_id)
+    {
         Some(client) => Some(client.1.username.clone()),
-        None => None
+        None => None,
     }
 }
-

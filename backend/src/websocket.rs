@@ -1,3 +1,4 @@
+use crate::Games;
 use crate::utils::current_unix_timestamp;
 use crate::{Clients, Client, Result, game::handle_message, logerr, log};
 
@@ -8,7 +9,7 @@ use tokio_stream::wrappers::UnboundedReceiverStream;
 use warp::ws::{WebSocket, Message};
 use warp::{http::StatusCode, Reply};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChatMessage {
     pub ts: usize,
     pub user_id: usize,
@@ -17,14 +18,14 @@ pub struct ChatMessage {
     pub message: String
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CanvasEvent {
     start_x: usize,
     start_y: usize,
     line_x: usize,
     line_y: usize,
 }
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CanvasMessage {
     pub ts: usize,
     pub user_id: usize,
@@ -34,7 +35,7 @@ pub struct CanvasMessage {
     pub canvas_events: Vec<CanvasEvent>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum Color {
     White = 0,
     Black = 1,
@@ -65,7 +66,7 @@ pub struct MessageEnvelope {
     pub game_state: Option<GameStateMessage>
 }
 
-pub async fn client_connection(websocket: WebSocket, id: String, clients: Clients, mut client: Client) {
+pub async fn client_connection(websocket: WebSocket, id: String, clients: Clients, mut client: Client, games: Games) {
     let (client_ws_sender, mut client_ws_rcv) = websocket.split();
     let (client_sender, client_rcv) = mpsc::unbounded_channel();
 
@@ -102,14 +103,15 @@ pub async fn client_connection(websocket: WebSocket, id: String, clients: Client
                 break;
             }
         };
-        client_msg(&id, msg, &clients).await.expect("Failed to exist");
+        client_msg(&id, msg, &clients, &games).await.expect("Failed to exist");
     }
 
     clients.write().await.remove(&id);
     log(format!("disconnected {}", id));
 }
 
-async fn client_msg(id: &str, msg: Message, clients: &Clients) -> Result<impl Reply> {
+// handler for client message
+async fn client_msg(id: &str, msg: Message, clients: &Clients, games: &Games) -> Result<impl Reply> {
     log(format!("Received message from {}", id));
     let raw = match msg.to_str() {
         Ok(v) => v,
@@ -122,15 +124,14 @@ async fn client_msg(id: &str, msg: Message, clients: &Clients) -> Result<impl Re
     }
     else {
         let obj: MessageEnvelope = serde_json::from_str::<MessageEnvelope>(raw).expect("Failed to parse");
-        handle_message(id, obj, clients.clone()).await;
-
+        handle_message(id, obj, clients.clone(), games.clone()).await;
         Ok(StatusCode::OK)
     }
 
 
 }
 
-// // send message to all players in a specific game
+// send message to all players in a specific game
 pub async fn send_msg_by_game_id(msg: Message, game_id: usize, clients: &Clients) -> Result<impl Reply> {
     clients.read()
         .await
@@ -145,17 +146,29 @@ pub async fn send_msg_by_game_id(msg: Message, game_id: usize, clients: &Clients
     Ok(StatusCode::OK)
 }
 
-// // send message to specific user id
-// pub async fn send_msg_by_user_id(msg: Message, user_id: usize, clients: Clients) -> Result<impl Reply> {
-//     clients.read()
-//         .await
-//         .iter()
-//         .filter(|(_, client)| user_id == client.user_id)
-//         .for_each(|(_, client)| {
-//             send_msg_to_client(msg.clone(), client);
-//         });
-//     Ok(StatusCode::OK)
-// }
+// send message to specific user id
+pub async fn send_msg_by_user_id(msg: Message, user_id: usize, clients: Clients) -> Result<impl Reply> {
+    clients.read()
+        .await
+        .iter()
+        .filter(|(_, client)| user_id == client.user_id)
+        .for_each(|(_, client)| {
+            send_msg_to_client(msg.clone(), client);
+        });
+    Ok(StatusCode::OK)
+}
+
+pub async fn send_msg_by_user_ids(msg: Message, user_ids: &Vec<usize>, clients: &Clients) -> Result<impl Reply> {
+    clients.read().await.iter().for_each(|(_, client)| {
+        if user_ids.iter().any(|id| {
+            id.clone() == client.user_id
+        }) {
+            send_msg_to_client(msg.clone(), client);
+        }
+    });
+    // TODO maybe add error handling
+    Ok(StatusCode::OK)
+}
 
 // send message to specific UUID
 pub async fn send_msg_by_id(msg: Message, id: String, clients: &Clients) -> Result<impl Reply> {
@@ -167,6 +180,8 @@ pub async fn send_msg_by_id(msg: Message, id: String, clients: &Clients) -> Resu
     // TODO maybe add error handling
     Ok(StatusCode::OK)
 }
+
+
 
 // send message to specific client
 fn send_msg_to_client(msg: Message, client: &Client) {
